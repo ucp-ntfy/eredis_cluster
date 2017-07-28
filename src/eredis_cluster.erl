@@ -182,6 +182,9 @@ query(Transaction, Slot, Counter) ->
         {error, tcp_closed} ->
             query(Transaction, Slot, Counter+1);
 
+        {error, closed} ->
+            query(Transaction, Slot, Counter+1);
+
         % Redis explicitly say our slot mapping is incorrect, we need to refresh
         % it
         {error, <<"MOVED ", _/binary>>} ->
