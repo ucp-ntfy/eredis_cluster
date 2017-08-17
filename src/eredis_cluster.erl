@@ -185,6 +185,9 @@ query(Transaction, Slot, Counter) ->
         {error, closed} ->
             query(Transaction, Slot, Counter+1);
 
+        {error, einval} ->
+            query(Transaction, Slot, Counter+1);
+
         % Redis explicitly say our slot mapping is incorrect, we need to refresh
         % it
         {error, <<"MOVED ", _/binary>>} ->
