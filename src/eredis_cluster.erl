@@ -160,6 +160,14 @@ query(Command, PoolKey) ->
     Transaction = fun(Worker) -> qw(Worker, Command) end,
     query(Transaction, Slot, 0).
 
+refresh_mapping_and_retry(Version, Transaction, Slot, Counter) ->
+  case eredis_cluster_monitor:refresh_mapping(Version) of
+    ok ->
+      query(Transaction, Slot, Counter+1);
+    error ->
+      {error, no_connection}
+  end.
+
 query(_, _, ?REDIS_CLUSTER_REQUEST_TTL) ->
     {error, no_connection};
 query(Transaction, Slot, Counter) ->
@@ -172,8 +180,7 @@ query(Transaction, Slot, Counter) ->
         % If we detect a node went down, we should probably refresh the slot
         % mapping.
         {error, no_connection} ->
-            eredis_cluster_monitor:refresh_mapping(Version),
-            query(Transaction, Slot, Counter+1);
+          refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
 
         % If the tcp connection is closed (connection timeout), the redis worker
         % will try to reconnect, thus the connection should be recovered for
@@ -191,8 +198,7 @@ query(Transaction, Slot, Counter) ->
         % Redis explicitly say our slot mapping is incorrect, we need to refresh
         % it
         {error, <<"MOVED ", _/binary>>} ->
-            eredis_cluster_monitor:refresh_mapping(Version),
-            query(Transaction, Slot,  Counter+1);
+          refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
 
         Payload ->
             Payload
