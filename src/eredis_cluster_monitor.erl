@@ -25,6 +25,10 @@
     version :: integer()
 }).
 
+-define(REFRESH_MAPPING_TIMEOUT, 10000).
+-define(CONNECT_TIMEOUT, 1000).
+-define(QUERY_TIMEOUT,   1000).
+
 %% API.
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -34,7 +38,10 @@ connect(InitServers) ->
     gen_server:call(?MODULE,{connect,InitServers}).
 
 refresh_mapping(Version) ->
-    gen_server:call(?MODULE,{reload_slots_map,Version}).
+  case catch gen_server:call(?MODULE,{reload_slots_map,Version}, ?REFRESH_MAPPING_TIMEOUT) of
+    ok -> ok;
+    _  -> error
+  end.
 
 %% =============================================================================
 %% @doc Given a slot return the link (Redis instance) to the mapped
@@ -94,7 +101,7 @@ get_cluster_slots([]) ->
 get_cluster_slots([Node|T]) ->
     case safe_eredis_start_link(Node#node.address, Node#node.port) of
         {ok,Connection} ->
-          case eredis:q(Connection, ["CLUSTER", "SLOTS"]) of
+          case catch eredis:q(Connection, ["CLUSTER", "SLOTS"], ?QUERY_TIMEOUT) of
             {error,<<"ERR unknown command 'CLUSTER'">>} ->
                 get_cluster_slots_from_single_node(Node);
             {error,<<"ERR This instance has cluster support disabled">>} ->
@@ -105,9 +112,9 @@ get_cluster_slots([Node|T]) ->
             _ ->
                 eredis:stop(Connection),
                 get_cluster_slots(T)
-        end;
+          end;
         _ ->
-            get_cluster_slots(T)
+          get_cluster_slots(T)
   end.
 
 -spec get_cluster_slots_from_single_node(#node{}) ->
@@ -164,7 +171,7 @@ connect_node(Node) ->
 
 safe_eredis_start_link(Address,Port) ->
     process_flag(trap_exit, true),
-    Payload = eredis:start_link(Address, Port),
+    Payload = eredis:start_link([{host,Address}, {port,Port}, {connect_timeout, ?CONNECT_TIMEOUT}]),
     process_flag(trap_exit, false),
     Payload.
 
