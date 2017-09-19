@@ -195,8 +195,12 @@ query(Transaction, Slot, Counter) ->
         {error, einval} ->
             query(Transaction, Slot, Counter+1);
 
-        % Redis explicitly say our slot mapping is incorrect, we need to refresh
-        % it
+        % Try again if cluster is down
+        {error, <<"CLUSTERDOWN ", _/binary>>} ->
+          timer:sleep(?REDIS_CLUSTERDOWN_RETRY_DELAY),
+          refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
+
+        % Redis explicitly say our slot mapping is incorrect, we need to refresh it
         {error, <<"MOVED ", _/binary>>} ->
           refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
 
