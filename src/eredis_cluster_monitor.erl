@@ -1,3 +1,5 @@
+% vim:expandtab:sw=4:ts=4
+
 -module(eredis_cluster_monitor).
 -behaviour(gen_server).
 
@@ -61,17 +63,26 @@ get_all_pools() ->
     [SlotsMap#slots_map.node#node.pool || SlotsMap <- SlotsMapList,
         SlotsMap#slots_map.node =/= undefined].
 
--spec get_pool_by_slot(Slot::integer()) ->
-    {PoolName::atom() | undefined, Version::integer()}.
-get_pool_by_slot(Slot) ->
-    State = get_state(),
-    Index = element(Slot+1,State#state.slots),
+get_pool_by_slot1(Slot) ->
+    State   = get_state(),
+    Index   = element(Slot+1,State#state.slots),
     Cluster = element(Index,State#state.slots_maps),
     if
         Cluster#slots_map.node =/= undefined ->
             {Cluster#slots_map.node#node.pool, State#state.version};
         true ->
             {undefined, State#state.version}
+    end.
+
+-spec get_pool_by_slot(Slot::integer()) ->
+    {PoolName::atom() | undefined, Version::integer()}.
+get_pool_by_slot(Slot) ->
+    case get_pool_by_slot1(Slot) of
+        {'EXIT', _} ->
+            {error, {try_again, 1000}};
+
+        R ->
+            {ok, R}
     end.
 
 -spec reload_slots_map(State::#state{}) -> NewState::#state{}.

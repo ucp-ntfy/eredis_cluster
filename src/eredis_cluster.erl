@@ -110,7 +110,7 @@ split_by_pools(Commands) ->
 split_by_pools([Command | T], Index, CmdAcc, MapAcc) ->
     Key = get_key_from_command(Command),
     Slot = get_key_slot(Key),
-    {Pool, _Version} = eredis_cluster_monitor:get_pool_by_slot(Slot),
+    {ok, {Pool, _Version}} = eredis_cluster_monitor:get_pool_by_slot(Slot),
     {NewAcc1, NewAcc2} =
         case lists:keyfind(Pool, 1, CmdAcc) of
             false ->
@@ -174,39 +174,44 @@ query(Transaction, Slot, Counter) ->
     %% Throttle retries
     throttle_retries(Counter),
 
-    {Pool, Version} = eredis_cluster_monitor:get_pool_by_slot(Slot),
+    case eredis_cluster_monitor:get_pool_by_slot(Slot) of
+      {error, {try_again, Time}} ->
+        timer:sleep(Time),
+        query(Transaction, Slot, Counter+1);
 
-    case eredis_cluster_pool:transaction(Pool, Transaction) of
-        % If we detect a node went down, we should probably refresh the slot
-        % mapping.
-        {error, no_connection} ->
-          refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
+      {ok, {Pool, Version}} ->
+        case eredis_cluster_pool:transaction(Pool, Transaction) of
+            % If we detect a node went down, we should probably refresh the slot
+            % mapping.
+            {error, no_connection} ->
+              refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
 
-        % If the tcp connection is closed (connection timeout), the redis worker
-        % will try to reconnect, thus the connection should be recovered for
-        % the next request. We don't need to refresh the slot mapping in this
-        % case
-        {error, tcp_closed} ->
-            query(Transaction, Slot, Counter+1);
+            % If the tcp connection is closed (connection timeout), the redis worker
+            % will try to reconnect, thus the connection should be recovered for
+            % the next request. We don't need to refresh the slot mapping in this
+            % case
+            {error, tcp_closed} ->
+                query(Transaction, Slot, Counter+1);
 
-        {error, closed} ->
-            query(Transaction, Slot, Counter+1);
+            {error, closed} ->
+                query(Transaction, Slot, Counter+1);
 
-        {error, einval} ->
-            query(Transaction, Slot, Counter+1);
+            {error, einval} ->
+                query(Transaction, Slot, Counter+1);
 
-        % Try again if cluster is down
-        {error, <<"CLUSTERDOWN ", _/binary>>} ->
-          timer:sleep(?REDIS_CLUSTERDOWN_RETRY_DELAY),
-          query(Transaction, Slot, max(Counter + 1, ?REDIS_CLUSTER_REQUEST_TTL - ?REDIS_CLUSTERDOWN_MAX_RETRY));
+            % Try again if cluster is down
+            {error, <<"CLUSTERDOWN ", _/binary>>} ->
+              timer:sleep(?REDIS_CLUSTERDOWN_RETRY_DELAY),
+              query(Transaction, Slot, max(Counter + 1, ?REDIS_CLUSTER_REQUEST_TTL - ?REDIS_CLUSTERDOWN_MAX_RETRY));
 
-        % Redis explicitly say our slot mapping is incorrect, we need to refresh it
-        {error, <<"MOVED ", _/binary>>} ->
-          refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
+            % Redis explicitly say our slot mapping is incorrect, we need to refresh it
+            {error, <<"MOVED ", _/binary>>} ->
+              refresh_mapping_and_retry(Version, Transaction, Slot, Counter);
 
-        Payload ->
-            Payload
-    end.
+            Payload ->
+                Payload
+        end
+     end.
 
 -spec throttle_retries(integer()) -> ok.
 throttle_retries(0) -> ok;
