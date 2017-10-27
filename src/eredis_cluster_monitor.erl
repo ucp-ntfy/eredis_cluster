@@ -77,7 +77,7 @@ get_pool_by_slot1(Slot) ->
 -spec get_pool_by_slot(Slot::integer()) ->
     {PoolName::atom() | undefined, Version::integer()}.
 get_pool_by_slot(Slot) ->
-    case get_pool_by_slot1(Slot) of
+    case catch get_pool_by_slot1(Slot) of
         {'EXIT', _} ->
             {error, {try_again, 1000}};
 
@@ -203,6 +203,7 @@ connect_all_slots(SlotsMapList) ->
 
 -spec connect_([{Address::string(), Port::integer()}]) -> #state{}.
 connect_([]) ->
+    true = ets:insert(?MODULE, [{cluster_state, #state{}}]),
     #state{};
 connect_(InitNodes) ->
     State = #state{

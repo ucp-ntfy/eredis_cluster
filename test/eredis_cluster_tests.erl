@@ -36,7 +36,7 @@ basic_test_() ->
 
             { "pipeline",
             fun () ->
-                ?assertNotMatch([{ok, _},{ok, _},{ok, _}], eredis_cluster:qp([["SET", "a1", "aaa"], ["SET", "a2", "aaa"], ["SET", "a3", "aaa"]])),
+                ?assertMatch([{ok, _},{ok, _},{ok, _}], eredis_cluster:qp([["SET", "a1", "aaa"], ["SET", "a2", "aaa"], ["SET", "a3", "aaa"]])),
                 ?assertMatch([{ok, _},{ok, _},{ok, _}], eredis_cluster:qp([["LPUSH", "a", "aaa"], ["LPUSH", "a", "bbb"], ["LPUSH", "a", "ccc"]]))
             end
             },
@@ -149,8 +149,24 @@ basic_test_() ->
                 eredis_cluster:eval(Script, ScriptHash, ["qrs"], ["evaltest"]),
                 ?assertEqual({ok, <<"evaltest">>}, eredis_cluster:q(["get", "qrs"]))
             end
-            }
+            },
 
+            { "retry on empty state",
+            fun () ->
+              ?assertEqual({ok,<<"OK">>}, eredis_cluster:q(["set", "zyx", "test"])),
+
+              eredis_cluster_monitor:connect([]),
+              timer:sleep(100), % let is disconnect
+              ?assertMatch({error, {try_again,_}}, eredis_cluster_monitor:get_pool_by_slot(10)),
+              spawn_link(
+                fun() ->
+                  timer:sleep(300),
+                  eredis_cluster_monitor:connect(application:get_env(eredis_cluster, init_nodes, []))
+                end),
+
+              ?assertEqual({ok, <<"test">>}, eredis_cluster:q(["get", "zyx"]))
+            end
+            }
       ]
     }
 }.
