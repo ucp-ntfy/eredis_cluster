@@ -4,8 +4,10 @@
     {modules, []},
     {registered, []},
     {applications, [
-        kernel,
-        stdlib
+      kernel,
+      stdlib,
+      eredis,
+      poolboy
     ]},
     {mod, {eredis_cluster, []}},
     {env, []}
