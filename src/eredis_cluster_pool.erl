@@ -12,6 +12,13 @@
 
 -include("eredis_cluster.hrl").
 
+get_redis_pass() ->
+	PassFile = "/usr/local/etc/redis-pass.secret",
+	case file:read_file(PassFile) of
+		{ok, Pass} -> binary_to_list(Pass);
+		_ -> undefined
+	end.
+
 -spec create(Host::string(), Port::integer()) ->
     {ok, PoolName::atom()} | {error, PoolName::atom()}.
 create(Host, Port) ->
@@ -19,7 +26,7 @@ create(Host, Port) ->
 
     case whereis(PoolName) of
         undefined ->
-            WorkerArgs = [{host, Host}, {port, Port}],
+            WorkerArgs = [{host, Host}, {port, Port}, {pass, get_redis_pass()],
 
         	Size = application:get_env(eredis_cluster, pool_size, 10),
         	MaxOverflow = application:get_env(eredis_cluster, pool_max_overflow, 0),
