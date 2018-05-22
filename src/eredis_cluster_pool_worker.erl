@@ -20,11 +20,8 @@ start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
 
 init(Args) ->
-    Hostname = proplists:get_value(host, Args),
-    Port = proplists:get_value(port, Args),
-
     process_flag(trap_exit, true),
-    Result = eredis:start_link(Hostname,Port),
+    Result = eredis:start_link(Args),
     process_flag(trap_exit, false),
 
     Conn = case Result of
