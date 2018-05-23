@@ -26,7 +26,7 @@ create(Host, Port) ->
 
     case whereis(PoolName) of
         undefined ->
-            WorkerArgs = [{host, Host}, {port, Port}, {pass, get_redis_pass()],
+            WorkerArgs = [{host, Host}, {port, Port}, {pass, get_redis_pass()}],
 
         	Size = application:get_env(eredis_cluster, pool_size, 10),
         	MaxOverflow = application:get_env(eredis_cluster, pool_max_overflow, 0),
