@@ -120,11 +120,13 @@ get_cluster_slots([Node|T]) ->
             {ok, ClusterInfo} ->
                 eredis:stop(Connection),
                 ClusterInfo;
-            _ ->
+            Err ->
+                lager:error("CLUSTER SLOTS error on ~p: ~p", [Node, Err]),
                 eredis:stop(Connection),
                 get_cluster_slots(T)
           end;
-        _ ->
+        Err ->
+          lager:error("Connection error: ~p", [Err]),
           get_cluster_slots(T)
   end.
 
