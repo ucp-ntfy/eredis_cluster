@@ -22,7 +22,7 @@
 
 -include("eredis_cluster.hrl").
 
--define(INFO(Reason), error_logger:info_msg("~s:~s ~p", [?MODULE, ?LINE, Reason])).
+-define(INFO(Reason), error_logger:info_msg("~p:~p ~p", [?MODULE, ?LINE, Reason])).
 
 -spec start(StartType::application:start_type(), StartArgs::term()) ->
     {ok, pid()}.
