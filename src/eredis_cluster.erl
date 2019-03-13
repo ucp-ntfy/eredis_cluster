@@ -22,6 +22,8 @@
 
 -include("eredis_cluster.hrl").
 
+-define(INFO(Reason), error_logger:info_msg("~s:~s ~p", [?MODULE, ?LINE, Reason])).
+
 -spec start(StartType::application:start_type(), StartArgs::term()) ->
     {ok, pid()}.
 start(_Type, _Args) ->
@@ -161,6 +163,7 @@ query(Command, PoolKey) ->
     query(Transaction, Slot, 0).
 
 query(_, _, ?REDIS_CLUSTER_REQUEST_TTL) ->
+    ?INFO("query: max attempts, giving up"),
     {error, no_connection};
 query(Transaction, Slot, Counter) ->
     %% Throttle retries
@@ -172,6 +175,7 @@ query(Transaction, Slot, Counter) ->
         % If we detect a node went down, we should probably refresh the slot
         % mapping.
         {error, no_connection} ->
+            ?INFO("query: no_connection. Going to refresh mapping and try again"),
             eredis_cluster_monitor:refresh_mapping(Version),
             query(Transaction, Slot, Counter+1);
 
@@ -180,11 +184,12 @@ query(Transaction, Slot, Counter) ->
         % the next request. We don't need to refresh the slot mapping in this
         % case
         {error, tcp_closed} ->
+            ?INFO("query: tcp_closed. trying again"),
             query(Transaction, Slot, Counter+1);
 
-        % Redis explicitly say our slot mapping is incorrect, we need to refresh
-        % it
+        % Redis explicitly say our slot mapping is incorrect, we need to refresh it
         {error, <<"MOVED ", _/binary>>} ->
+            ?INFO("query: moved. Going to refresh mapping and try again"),
             eredis_cluster_monitor:refresh_mapping(Version),
             query(Transaction, Slot,  Counter+1);
 
