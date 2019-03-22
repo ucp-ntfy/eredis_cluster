@@ -227,7 +227,9 @@ query(Transaction, Slot, Counter) ->
 
 -spec throttle_retries(integer()) -> ok.
 throttle_retries(0) -> ok;
-throttle_retries(_) -> timer:sleep(?REDIS_RETRY_DELAY).
+throttle_retries(_) ->
+  application:ensure_started(?MODULE),
+  timer:sleep(?REDIS_RETRY_DELAY).
 
 %% =============================================================================
 %% @doc Update the value of a key by applying the function passed in the
